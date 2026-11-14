@@ -1,0 +1,794 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Solo Miner Optimizer</title>
+<style>
+:root{--bg:#14152b;--panel:#1f2140;--panel2:#272a52;--line:#33366a;--text:#e8e9f7;--muted:#9a9cc4;--accent:#8b5cf6;--blue:#38bdf8;--ok:#22c55e;--warn:#f59e0b;--err:#ef4444}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 "Segoe UI",system-ui,sans-serif}
+header{display:flex;align-items:center;gap:16px;padding:12px 20px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5;flex-wrap:wrap}
+header h1{font-size:18px;margin:0;font-weight:700;letter-spacing:.3px}
+header h1 span{color:var(--accent)}
+nav{display:flex;gap:4px;flex-wrap:wrap}
+nav button{background:none;border:0;color:var(--muted);padding:8px 12px;border-radius:8px;cursor:pointer;font:inherit}
+nav button.active,nav button:hover{background:var(--panel2);color:var(--text)}
+#status{margin-left:auto;color:var(--muted);font-size:12px}
+#langsel{padding:4px 6px;font-size:12px}
+main{padding:20px;max-width:1500px;margin:0 auto}
+.tab{display:none}.tab.active{display:block}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.card .l{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+.card .v{font-size:22px;font-weight:600;color:var(--blue);margin-top:4px}
+.card .s{color:var(--muted);font-size:12px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+.panel h2{font-size:15px;margin:0 0 12px}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.4px}
+tr:hover td{background:rgba(255,255,255,.02)}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}
+.ok{color:var(--ok)}.warn{color:var(--warn)}.err{color:var(--err)}.muted{color:var(--muted)}
+a{color:var(--blue)}
+button.btn{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer;font:inherit;font-weight:600}
+button.btn.sec{background:var(--panel2);border:1px solid var(--line)}
+button.btn.red{background:var(--err)}
+button.btn.small{padding:4px 10px;font-size:12px}
+button:disabled{opacity:.5;cursor:not-allowed}
+input,select{background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit}
+input[type=number]{width:110px}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:900px){.grid2{grid-template-columns:1fr}}
+canvas{width:100%;height:220px;display:block}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;background:var(--panel2);border:1px solid var(--line)}
+.bar{height:8px;background:var(--panel2);border-radius:4px;overflow:hidden}
+.bar>div{height:100%;background:var(--accent)}
+.alarm{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.alarm .t{color:var(--muted);font-size:12px;min-width:130px}
+.note{color:var(--muted);font-size:12px;margin-top:8px}
+#welcome{border-color:var(--accent)}
+#welcome h2{font-size:20px}
+@media(max-width:600px){main{padding:12px 16px}header{padding:10px 16px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Solo Miner <span>Optimizer</span></h1>
+  <nav id="nav">
+    <button data-tab="overview" class="active" data-i="nav_overview"></button>
+    <button data-tab="tuning" data-i="nav_tuning"></button>
+    <button data-tab="calc" data-i="nav_calc"></button>
+    <button data-tab="pools" data-i="nav_pools"></button>
+    <button data-tab="alarms" data-i="nav_alarms"></button>
+    <button data-tab="settings" data-i="nav_settings"></button>
+  </nav>
+  <div id="status"></div>
+  <select id="langsel" title="Language / Sprache"><option value="de">DE</option><option value="en">EN</option></select>
+</header>
+<main>
+
+<!-- OVERVIEW -->
+<section class="tab active" id="tab-overview">
+  <div class="panel" id="welcome" style="display:none">
+    <h2 data-i="wel_title"></h2>
+    <p data-i="wel_text"></p>
+    <div class="row">
+      <label class="f"><span data-i="wel_net"></span><input id="w-cidr" style="width:180px"></label>
+      <button class="btn" id="w-scan" data-i="wel_scan"></button>
+      <span id="w-stat" class="muted"></span>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <label class="f"><span data-i="wel_manual"></span><input id="w-ip" data-ph="ph_ip"></label>
+      <button class="btn sec" id="w-add" data-i="btn_add"></button>
+    </div>
+    <div class="note" data-i="wel_note"></div>
+  </div>
+  <div id="ov-main">
+    <div class="cards" id="cards"></div>
+    <div class="panel"><h2 data-i="ov_chart"></h2><canvas id="chart"></canvas></div>
+    <div class="panel"><h2 data-i="ov_devices"></h2><div class="scroll"><table id="devtable"></table></div></div>
+  </div>
+</section>
+
+<!-- TUNING -->
+<section class="tab" id="tab-tuning">
+  <div class="panel">
+    <h2 data-i="tu_title"></h2>
+    <div class="row">
+      <label class="f"><span data-i="lbl_device"></span><select id="t-ip"></select></label>
+      <label class="f"><span data-i="tu_profile"></span><select id="t-preset">
+        <option value="eff" data-i="pr_eff"></option>
+        <option value="bal" selected data-i="pr_bal"></option>
+        <option value="max" data-i="pr_max"></option>
+        <option value="custom" data-i="pr_custom"></option>
+      </select></label>
+      <label class="f"><span data-i="tu_goal"></span><select id="t-mode"><option value="efficiency" data-i="goal_eff"></option><option value="hashrate" data-i="goal_hr"></option></select></label>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <label class="f"><span data-i="tu_fmin"></span><input type="number" id="t-minFreq"></label>
+      <label class="f"><span data-i="tu_fmax"></span><input type="number" id="t-maxFreq"></label>
+      <label class="f"><span data-i="tu_step"></span><input type="number" id="t-stepFreq"></label>
+      <label class="f"><span data-i="tu_vmin"></span><input type="number" id="t-minV"></label>
+      <label class="f"><span data-i="tu_vmax"></span><input type="number" id="t-maxV"></label>
+      <label class="f"><span data-i="tu_step"></span><input type="number" id="t-stepV"></label>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <label class="f"><span data-i="tu_maxtemp"></span><input type="number" id="t-maxTemp" value="65" min="40" max="75"></label>
+      <label class="f"><span data-i="tu_maxvr"></span><input type="number" id="t-maxVr" value="80" min="40" max="95"></label>
+      <label class="f"><span data-i="tu_warm"></span><input type="number" id="t-warmupSec" value="120" min="60" max="1800"></label>
+      <label class="f"><span data-i="tu_meas"></span><input type="number" id="t-measureSec" value="300" min="60" max="3600"></label>
+      <label class="f"><span data-i="tu_minhr"></span><input type="number" id="t-minHrPct" value="92" min="50" max="100"></label>
+      <label class="f"><span data-i="tu_maxhw"></span><input type="number" id="t-maxHwErrPerMin" value="100" min="0"></label>
+      <label class="f"><span data-i="tu_maxrej"></span><input type="number" id="t-maxRejected" value="2" min="0"></label>
+      <button class="btn" id="t-start" data-i="tu_start"></button>
+    </div>
+    <div class="note" id="t-est"></div>
+    <div class="note" id="t-limits" style="color:var(--text)"></div>
+    <div class="note" data-i="tu_safety"></div>
+  </div>
+  <div id="t-jobs"></div>
+  <div class="panel">
+    <h2 data-i="man_title"></h2>
+    <div class="row">
+      <label class="f"><span data-i="lbl_device"></span><select id="m-ip"></select></label>
+      <label class="f"><span data-i="lbl_freq"></span><input type="number" id="m-freq"></label>
+      <label class="f"><span data-i="lbl_volt"></span><input type="number" id="m-volt"></label>
+      <button class="btn sec" id="m-apply" data-i="btn_apply"></button>
+    </div>
+  </div>
+</section>
+
+<!-- CALCULATOR -->
+<section class="tab" id="tab-calc">
+  <div class="panel">
+    <h2 data-i="ca_inputs"></h2>
+    <div class="row">
+      <label class="f"><span data-i="ca_hr"></span><input type="number" step="0.01" id="c-hr"></label>
+      <label class="f"><span data-i="ca_pw"></span><input type="number" step="0.1" id="c-pw"></label>
+      <label class="f"><span class="cur-kwh"></span><input type="number" step="0.01" id="c-price"></label>
+      <label class="f"><span data-i="ca_diff"></span><input type="number" step="0.01" id="c-diff"></label>
+      <label class="f"><span data-i="ca_reward"></span><input type="number" step="0.001" id="c-reward"></label>
+      <label class="f"><span class="cur-btc"></span><input type="number" step="1" id="c-btc"></label>
+      <button class="btn sec" id="c-live" data-i="ca_live"></button>
+    </div>
+    <div class="note" data-i="ca_note"></div>
+  </div>
+  <div class="cards" id="c-cards"></div>
+  <div class="grid2">
+    <div class="panel"><h2 data-i="ca_chance"></h2><table id="c-prob"></table></div>
+    <div class="panel"><h2 data-i="ca_cost"></h2><table id="c-cost"></table></div>
+  </div>
+  <div class="panel"><h2 data-i="ca_perdev"></h2><div class="scroll"><table id="c-dev"></table></div></div>
+</section>
+
+<!-- POOLS -->
+<section class="tab" id="tab-pools">
+  <div class="grid2">
+    <div class="panel">
+      <h2 data-i="po_compare"></h2>
+      <table id="p-list"></table>
+      <div class="row" style="margin-top:12px">
+        <label class="f"><span data-i="po_name"></span><input id="p-name" data-ph="ph_mynode"></label>
+        <label class="f">Host<input id="p-host" data-ph="ph_host"></label>
+        <label class="f">Port<input type="number" id="p-port" value="3333"></label>
+        <button class="btn sec" id="p-add" data-i="btn_add"></button>
+        <button class="btn" id="p-test" data-i="po_test"></button>
+      </div>
+      <div class="note" data-i="po_note"></div>
+    </div>
+    <div class="panel">
+      <h2 data-i="po_set"></h2>
+      <div class="row">
+        <label class="f">Pool<select id="s-pool"></select></label>
+        <label class="f">Slot<select id="s-which"><option value="primary" data-i="po_primary"></option><option value="fallback">Fallback</option></select></label>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <label class="f" style="flex:1"><span data-i="po_user"></span><input id="s-user" style="width:100%"></label>
+        <label class="f"><span data-i="po_pass"></span><input id="s-pass" value="x" style="width:80px"></label>
+      </div>
+      <label style="display:block;margin-top:10px"><input type="checkbox" id="s-worker" checked> <span data-i="po_worker"></span></label>
+      <div id="s-devs" style="margin:10px 0;display:flex;gap:10px;flex-wrap:wrap"></div>
+      <button class="btn" id="s-apply" data-i="po_apply"></button>
+      <div class="note" data-i="po_setnote"></div>
+      <div id="s-result" class="note"></div>
+    </div>
+  </div>
+  <div class="panel"><h2 data-i="po_current"></h2><div class="scroll"><table id="p-current"></table></div></div>
+</section>
+
+<!-- ALERTS -->
+<section class="tab" id="tab-alarms">
+  <div class="grid2">
+    <div class="panel">
+      <h2 data-i="al_limits"></h2>
+      <div class="row">
+        <label class="f"><span data-i="al_temp"></span><input type="number" id="a-temp_max"></label>
+        <label class="f"><span data-i="al_vr"></span><input type="number" id="a-vr_temp_max"></label>
+        <label class="f"><span data-i="al_hr"></span><input type="number" id="a-hashrate_min_pct"></label>
+        <label class="f"><span data-i="al_lat"></span><input type="number" id="a-pool_latency_max_ms"></label>
+        <label class="f"><span data-i="al_off"></span><input type="number" id="a-offline_after_polls"></label>
+        <label class="f"><span data-i="al_cool"></span><input type="number" id="a-cooldown_min"></label>
+      </div>
+      <label style="display:block;margin-top:10px"><input type="checkbox" id="a-notify_best_diff"> <span data-i="al_best"></span></label>
+      <h2 style="margin-top:18px" data-i="al_notif"></h2>
+      <label style="display:block"><input type="checkbox" id="a-browser"> <span data-i="al_browser"></span></label>
+      <input type="checkbox" id="a-windows_notify" hidden>
+      <div class="row" style="margin-top:10px">
+        <label class="f">Telegram Bot-Token<input id="a-telegram_token" style="width:240px"></label>
+        <label class="f">Telegram Chat-ID<input id="a-telegram_chat_id"></label>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <label class="f" style="flex:1"><span data-i="al_ntfy"></span><input id="a-ntfy_url" style="width:100%"></label>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn" id="a-save" data-i="btn_save"></button>
+        <button class="btn sec" id="a-test" data-i="al_test"></button>
+      </div>
+    </div>
+    <div class="panel">
+      <h2><span data-i="al_log"></span> <button class="btn sec small" id="a-clear" style="float:right" data-i="al_clear"></button></h2>
+      <div id="a-log"></div>
+    </div>
+  </div>
+</section>
+
+<!-- SETTINGS -->
+<section class="tab" id="tab-settings">
+  <div class="grid2">
+    <div class="panel">
+      <h2 data-i="se_devices"></h2>
+      <div class="row">
+        <label class="f"><span data-i="se_ip"></span><input id="d-ip" data-ph="ph_ip"></label>
+        <button class="btn" id="d-add" data-i="btn_add"></button>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <label class="f"><span data-i="se_scan"></span><input id="d-cidr"></label>
+        <button class="btn sec" id="d-scan" data-i="se_scanbtn"></button>
+        <span id="d-scanstat" class="muted"></span>
+      </div>
+      <table id="d-list" style="margin-top:12px"></table>
+    </div>
+    <div class="panel">
+      <h2 data-i="se_general"></h2>
+      <div class="row">
+        <label class="f"><span data-i="se_lang"></span><select id="g-lang"><option value="auto" data-i="se_auto"></option><option value="de">Deutsch</option><option value="en">English</option></select></label>
+        <label class="f"><span data-i="se_cur"></span><select id="g-cur"></select></label>
+        <label class="f"><span data-i="se_poll"></span><input type="number" id="g-poll"></label>
+        <label class="f"><span class="cur-kwh"></span><input type="number" step="0.01" id="g-price"></label>
+        <button class="btn" id="g-save" data-i="btn_save"></button>
+      </div>
+      <div class="note" id="g-info"></div>
+      <div class="note" data-i="se_disclaimer"></div>
+    </div>
+  </div>
+</section>
+</main>
+
+<script>
+// =====================================================================  i18n
+const L = {
+de: {
+  nav_overview:'Übersicht', nav_tuning:'Auto-Tuning', nav_calc:'Rechner', nav_pools:'Pools', nav_alarms:'Alarme', nav_settings:'Einstellungen',
+  connecting:'verbinde…', no_conn:'Keine Verbindung zum Programm', online:'online',
+  wel_title:'Willkommen! Lass uns deine Miner finden 👋',
+  wel_text:'Das Programm sucht in deinem Heimnetz nach Bitaxe- und NexusQX1-Minern. Das Netzwerk unten wurde automatisch erkannt.',
+  wel_net:'Netzwerk', wel_scan:'Miner suchen', wel_manual:'Oder IP-Adresse von Hand', wel_note:'Die IP-Adresse eines Miners steht auch auf seinem Display oder in der Geräteliste deines Routers.',
+  ph_ip:'z. B. 192.168.1.50', ph_mynode:'Mein Node', ph_host:'z. B. 192.168.1.10',
+  ov_chart:'Hashrate & Leistung (24 h)', ov_devices:'Geräte',
+  c_hash:'Gesamt-Hashrate', c_devs:'{n} Geräte online', c_power:'Leistung', c_perday:'{v} / Tag', c_eff:'Effizienz', c_avg:'Schwarm-Durchschnitt',
+  c_best:'Beste Difficulty', c_ofnet:'{v} % der Netzwerk-Diff', c_chance:'Chance / Tag', c_every:'Erwartet alle {v}', c_netdiff:'Netzwerk-Diff',
+  th_device:'Gerät', th_model:'Modell', th_hr10:'Hashrate 10m', th_target:'Soll', th_power:'Leistung', th_temps:'ASIC / VR', th_fv:'Frequenz / Spannung',
+  th_fan:'Lüfter', th_shares:'Shares', th_hwerr:'HW-Fehler/min', th_lat:'Pool-Latenz', th_best:'Best / Session', th_uptime:'Betriebszeit', th_pool:'Pool',
+  offline:'offline / antwortet nicht', btn_restart:'Neustart', confirm_restart:'{ip} neu starten?', hw_title:'Durchschnitt seit Gerätestart ({n} gesamt)',
+  collecting:'Sammle Daten…',
+  tu_title:'Auto-Tuning starten', lbl_device:'Gerät', tu_profile:'Profil', pr_eff:'Effizienz (wenig Watt/TH)', pr_bal:'Ausgewogen', pr_max:'Maximale Hashrate', pr_custom:'Benutzerdefiniert',
+  tu_goal:'Ziel', goal_eff:'beste J/TH', goal_hr:'höchste Hashrate',
+  tu_fmin:'Frequenz min (MHz)', tu_fmax:'Frequenz max', tu_step:'Schritt', tu_vmin:'Spannung min (mV)', tu_vmax:'Spannung max',
+  tu_maxtemp:'Max. ASIC-Temp (°C)', tu_maxvr:'Max. VR-Temp (°C)', tu_warm:'Aufwärmen (s)', tu_meas:'Messdauer (s)', tu_minhr:'Min. Hashrate vom Soll (%)',
+  tu_maxhw:'Max. HW-Fehler/min', tu_maxrej:'Max. abgelehnte Shares', tu_start:'Tuning starten',
+  tu_est:'{n} Messpunkte – höchstens etwa {t} (instabile Punkte werden übersprungen). Mehrere Geräte können parallel getunt werden.',
+  tu_safety:'Sicherheit: Während Aufwärmen und Messung werden Temperaturen und Leistung alle 10 s geprüft. Liegt die ASIC- oder VR-Temperatur über der Grenze (höchstens 75 °C / 95 °C) oder erreicht die Leistung 95 % des Geräte-Limits, wird der Punkt sofort abgebrochen und bei dieser Spannung keine höhere Frequenz mehr getestet. Ist schon die niedrigste Frequenz zu heiß, werden auch keine höheren Spannungen mehr getestet. Instabil ist ein Punkt auch bei zu wenig Hashrate, über 3 % Fehlerrate, zu vielen HW-Fehlern pro Minute oder abgelehnten Shares. Bei Netzwerkproblemen wird der Punkt wiederholt. Bei Abbruch oder Programmende werden die ursprünglichen Werte wiederhergestellt. Harte Grenzen: Bitaxe 400–800 MHz / 1000–1300 mV; NexusQX1 nach den Grenzen, die das Gerät meldet.',
+  tu_limits:'Erlaubt für {name}: {f1}–{f2} MHz, {v1}–{v2} mV ({src}), Standard {fd} MHz / {vd} mV, aktuell {f} MHz / {v} mV.',
+  src_device:'Grenze vom Gerät', src_app:'Grenze vom Programm',
+  hint_nexus:'NexusQX1: Läuft meist schon am Frequenz-Maximum. „Maximale Hashrate“ sucht daher die niedrigste stabile Spannung bei voller Frequenz, also gleiche Hashrate mit weniger Watt. „Effizienz“ testet niedrigere Frequenzen.',
+  warn_hw:'Hinweis: {name} hat schon jetzt im Schnitt {v} HW-Fehler/min – die Grenze liegt bei {lim}. Wahrscheinlich werden fast alle Punkte als instabil verworfen. Trotzdem fortfahren?',
+  warn_lat:'Hinweis: {name} hat eine Pool-Antwortzeit von {v} ms. Netzwerkprobleme verfälschen die Messung. Trotzdem fortfahren?',
+  confirm_tune:'Auto-Tuning für {name} starten?\n\nAktuell: {f} MHz / {v} mV\nBereich: {f1}–{f2} MHz, {v1}–{v2} mV\n\nDer Miner kann dabei mehrmals neu starten.',
+  confirm_set:'{name} auf {f} MHz / {v} mV setzen?\n\nAktuell: {cf} MHz / {cv} mV', applied:'Übernommen: {f} MHz / {v} mV',
+  btn_cancel:'Abbrechen', btn_hide:'Ausblenden', btn_apply:'Übernehmen', btn_add:'Hinzufügen', btn_save:'Speichern', btn_remove:'Entfernen', saved:'Gespeichert',
+  saved_result:'Gespeichertes Ergebnis vom {d}', points:'{a}/{b} Punkte · Start {t}', live:'live', hw_live:'{v} HW-Fehler/min, {r} abgelehnt',
+  active_on:'Aktiv auf dem Gerät:', differs:'(abweichend vom Vorschlag des Programms, z. B. von Hand gesetzt)',
+  best_so_far:'Bisher bestes', suggestion:'Vorschlag des Programms', mode_hr:'Hashrate', mode_eff:'Effizienz',
+  th_mhz:'MHz', th_mv:'mV', th_hr:'Hashrate', th_pct:'% Soll', th_watt:'Watt', th_asicmax:'ASIC max', th_vrmax:'VR max', th_errpct:'Fehler %', th_rej:'Abgelehnt', th_status:'Status',
+  stable:'stabil', pill_active:'aktiv', pill_sugg:'Vorschlag',
+  legend:'Grün = läuft gerade auf dem Gerät · Lila = Vorschlag des Programms · Mit „Übernehmen“ kannst du jeden stabilen Punkt selbst setzen.',
+  man_title:'Manuell setzen', lbl_freq:'Frequenz (MHz)', lbl_volt:'Spannung (mV)',
+  ca_inputs:'Eingaben', ca_hr:'Hashrate (TH/s)', ca_pw:'Leistung (W)', kwh:'Strompreis ({c}/kWh)', ca_diff:'Netzwerk-Difficulty (T)', ca_reward:'Blockbelohnung (BTC)', btcprice:'BTC-Kurs ({c})',
+  ca_live:'Live-Werte übernehmen', ca_note:'Vorausgefüllt mit den Live-Werten deines Schwarms. Ändere Werte für Was-wäre-wenn-Szenarien. Difficulty kommt von den Minern, der Kurs von mempool.space.',
+  ca_chance:'Chance auf einen Block', ca_cost:'Kosten vs. erwarteter Ertrag', ca_perdev:'Pro Gerät',
+  k_eta:'Erwartete Zeit bis Block', k_eta_s:'Durchschnitt, kein Versprechen', k_reward:'Blockbelohnung', k_reward_s:'{v} BTC inkl. Gebühren',
+  k_cost:'Stromkosten / Jahr', k_ev:'Erwartungswert / Jahr', k_ev_s:'Verhältnis Ertrag/Kosten {v}',
+  per_1h:'1 Stunde', per_1d:'1 Tag', per_1w:'1 Woche', per_1m:'1 Monat', per_1y:'1 Jahr', per_5y:'5 Jahre', per_10y:'10 Jahre',
+  th_period:'Zeitraum', th_prob:'Wahrscheinlichkeit', th_ecost:'Kosten Strom', th_metric:'Kennzahl', th_value:'Wert',
+  m_day:'Stromkosten pro Tag', m_month:'Stromkosten pro Monat', m_years:'Ein Block bezahlt so viele Jahre Strom', m_years_v:'{v} Jahre',
+  m_chance:'Chance, dass ein Block innerhalb dieser Zeit kommt', m_per1:'Kosten pro 1 % Blockchance',
+  th_share:'Anteil', th_cyear:'Chance / Jahr', th_every:'Erwartet alle', th_eyear:'Strom / Jahr', th_per1:'Strom pro 1 % Chance', th_bestshare:'Best Share',
+  po_compare:'Solo-Pools vergleichen', po_name:'Name', po_test:'Latenz messen', th_latency:'Latenz', unreachable:'nicht erreichbar',
+  po_note:'Gemessen wird die TCP-Verbindungszeit vom PC aus (bester von drei Versuchen). Bei Solo-Mining hängt die Gewinnchance nicht vom Pool ab – eine niedrige Latenz bedeutet aber weniger veraltete Arbeit.',
+  po_set:'Pool auf Geräten setzen', po_primary:'Primär', po_user:'BTC-Adresse (Benutzer)', po_pass:'Passwort', po_worker:'Hostname als Worker anhängen (adresse.bitaxe01)',
+  po_apply:'Setzen & neu starten', po_setnote:'Nur für AxeOS-Geräte; setzt das Protokoll auf Stratum V1. Die Geräte starten danach neu. Das Programm meldet, wenn ein Gerät auf den Fallback umschaltet.',
+  po_missing:'Pool, BTC-Adresse und mindestens ein Gerät wählen.', po_confirm:'{slot}-Pool {host}:{port} auf {n} Gerät(en) setzen und neu starten?\n\nAdresse: {user}',
+  po_current:'Aktuelle Pools', th_user:'Benutzer', th_pdiff:'Pool-Diff', primary:'Primär',
+  al_limits:'Grenzwerte', al_temp:'ASIC-Temp max (°C)', al_vr:'VR-Temp max (°C)', al_hr:'Hashrate min (% vom Soll)', al_lat:'Pool-Latenz max (ms)', al_off:'Offline nach X Abfragen', al_cool:'Wiederholung frühestens (min)',
+  al_best:'Bei neuem Best Share benachrichtigen', al_notif:'Benachrichtigungen', al_browser:'Desktop-Benachrichtigung über den Browser (solange dieser Tab offen ist)',
+  al_ntfy:'ntfy-URL (z. B. https://ntfy.sh/mein-geheimes-thema)', al_test:'Test-Alarm senden', al_log:'Verlauf', al_clear:'Leeren', no_alarms:'Keine Alarme.',
+  se_devices:'Geräte', se_ip:'IP-Adresse', se_scan:'Netzwerk scannen', se_scanbtn:'Scan starten', se_general:'Allgemein', se_lang:'Sprache', se_auto:'Automatisch', se_cur:'Währung', se_poll:'Abfrageintervall (s)',
+  scan_run:'läuft… {p} %', scan_done:'{n} gefunden, {a} neu', confirm_remove:'{ip} entfernen?',
+  se_info:'Version {v}. Einstellungen und Tuning-Ergebnisse: {p}',
+  se_disclaimer:'Benutzung auf eigene Gefahr. Das Ändern von Frequenz und Spannung kann Hardware beschädigen und die Garantie beeinträchtigen. Open Source unter MIT-Lizenz, ohne Gewähr.',
+  y:'Jahre', d:'Tage', one_in:'1 zu {n}'
+},
+en: {
+  nav_overview:'Overview', nav_tuning:'Auto-Tuning', nav_calc:'Calculator', nav_pools:'Pools', nav_alarms:'Alerts', nav_settings:'Settings',
+  connecting:'connecting…', no_conn:'No connection to the program', online:'online',
+  wel_title:'Welcome! Let\'s find your miners 👋',
+  wel_text:'The program searches your home network for Bitaxe and NexusQX1 miners. The network below was detected automatically.',
+  wel_net:'Network', wel_scan:'Find miners', wel_manual:'Or enter an IP address', wel_note:'A miner\'s IP address is also shown on its display or in your router\'s device list.',
+  ph_ip:'e.g. 192.168.1.50', ph_mynode:'My node', ph_host:'e.g. 192.168.1.10',
+  ov_chart:'Hashrate & power (24 h)', ov_devices:'Devices',
+  c_hash:'Total hashrate', c_devs:'{n} devices online', c_power:'Power', c_perday:'{v} / day', c_eff:'Efficiency', c_avg:'Swarm average',
+  c_best:'Best difficulty', c_ofnet:'{v} % of network diff', c_chance:'Chance / day', c_every:'Expected every {v}', c_netdiff:'Network diff',
+  th_device:'Device', th_model:'Model', th_hr10:'Hashrate 10m', th_target:'Target', th_power:'Power', th_temps:'ASIC / VR', th_fv:'Frequency / Voltage',
+  th_fan:'Fan', th_shares:'Shares', th_hwerr:'HW errors/min', th_lat:'Pool latency', th_best:'Best / Session', th_uptime:'Uptime', th_pool:'Pool',
+  offline:'offline / not responding', btn_restart:'Restart', confirm_restart:'Restart {ip}?', hw_title:'Average since device start ({n} total)',
+  collecting:'Collecting data…',
+  tu_title:'Start auto-tuning', lbl_device:'Device', tu_profile:'Profile', pr_eff:'Efficiency (low W/TH)', pr_bal:'Balanced', pr_max:'Maximum hashrate', pr_custom:'Custom',
+  tu_goal:'Goal', goal_eff:'best J/TH', goal_hr:'highest hashrate',
+  tu_fmin:'Frequency min (MHz)', tu_fmax:'Frequency max', tu_step:'Step', tu_vmin:'Voltage min (mV)', tu_vmax:'Voltage max',
+  tu_maxtemp:'Max ASIC temp (°C)', tu_maxvr:'Max VR temp (°C)', tu_warm:'Warm-up (s)', tu_meas:'Measure (s)', tu_minhr:'Min hashrate of target (%)',
+  tu_maxhw:'Max HW errors/min', tu_maxrej:'Max rejected shares', tu_start:'Start tuning',
+  tu_est:'{n} test points – at most about {t} (unstable points are skipped). Several devices can be tuned in parallel.',
+  tu_safety:'Safety: temperatures and power are checked every 10 s during warm-up and measurement. If ASIC or VR temperature exceeds the limit (max. 75 °C / 95 °C) or power reaches 95 % of the device limit, the point is aborted immediately and higher frequencies at that voltage are skipped. If even the lowest frequency is too hot, higher voltages are skipped as well. A point is also unstable with too little hashrate, more than 3 % error rate, too many HW errors per minute or rejected shares. On network problems the point is repeated. On abort or program exit the original values are restored. Hard limits: Bitaxe 400–800 MHz / 1000–1300 mV; NexusQX1 uses the limits reported by the device.',
+  tu_limits:'Allowed for {name}: {f1}–{f2} MHz, {v1}–{v2} mV ({src}), default {fd} MHz / {vd} mV, current {f} MHz / {v} mV.',
+  src_device:'limit reported by device', src_app:'program limit',
+  hint_nexus:'NexusQX1: usually already runs at its maximum frequency. "Maximum hashrate" therefore looks for the lowest stable voltage at full frequency – same hashrate, fewer watts. "Efficiency" tests lower frequencies.',
+  warn_hw:'Note: {name} already averages {v} HW errors/min – the limit is {lim}. Almost all points will probably be rejected. Continue anyway?',
+  warn_lat:'Note: {name} has a pool response time of {v} ms. Network problems distort the measurement. Continue anyway?',
+  confirm_tune:'Start auto-tuning for {name}?\n\nCurrent: {f} MHz / {v} mV\nRange: {f1}–{f2} MHz, {v1}–{v2} mV\n\nThe miner may restart several times.',
+  confirm_set:'Set {name} to {f} MHz / {v} mV?\n\nCurrent: {cf} MHz / {cv} mV', applied:'Applied: {f} MHz / {v} mV',
+  btn_cancel:'Cancel', btn_hide:'Hide', btn_apply:'Apply', btn_add:'Add', btn_save:'Save', btn_remove:'Remove', saved:'Saved',
+  saved_result:'Saved result from {d}', points:'{a}/{b} points · started {t}', live:'live', hw_live:'{v} HW errors/min, {r} rejected',
+  active_on:'Active on the device:', differs:'(differs from the program\'s suggestion, e.g. set manually)',
+  best_so_far:'Best so far', suggestion:'Program suggestion', mode_hr:'hashrate', mode_eff:'efficiency',
+  th_mhz:'MHz', th_mv:'mV', th_hr:'Hashrate', th_pct:'% target', th_watt:'Watt', th_asicmax:'ASIC max', th_vrmax:'VR max', th_errpct:'Error %', th_rej:'Rejected', th_status:'Status',
+  stable:'stable', pill_active:'active', pill_sugg:'suggestion',
+  legend:'Green = currently running on the device · Purple = program suggestion · Use "Apply" to set any stable point yourself.',
+  man_title:'Set manually', lbl_freq:'Frequency (MHz)', lbl_volt:'Voltage (mV)',
+  ca_inputs:'Inputs', ca_hr:'Hashrate (TH/s)', ca_pw:'Power (W)', kwh:'Electricity ({c}/kWh)', ca_diff:'Network difficulty (T)', ca_reward:'Block reward (BTC)', btcprice:'BTC price ({c})',
+  ca_live:'Use live values', ca_note:'Prefilled with your swarm\'s live values. Change values for what-if scenarios. Difficulty comes from the miners, the price from mempool.space.',
+  ca_chance:'Chance of finding a block', ca_cost:'Cost vs. expected return', ca_perdev:'Per device',
+  k_eta:'Expected time to block', k_eta_s:'Average, not a promise', k_reward:'Block reward', k_reward_s:'{v} BTC incl. fees',
+  k_cost:'Electricity / year', k_ev:'Expected value / year', k_ev_s:'Return/cost ratio {v}',
+  per_1h:'1 hour', per_1d:'1 day', per_1w:'1 week', per_1m:'1 month', per_1y:'1 year', per_5y:'5 years', per_10y:'10 years',
+  th_period:'Period', th_prob:'Probability', th_ecost:'Electricity cost', th_metric:'Metric', th_value:'Value',
+  m_day:'Electricity per day', m_month:'Electricity per month', m_years:'One block pays this many years of power', m_years_v:'{v} years',
+  m_chance:'Chance of a block within that time', m_per1:'Cost per 1 % block chance',
+  th_share:'Share', th_cyear:'Chance / year', th_every:'Expected every', th_eyear:'Power / year', th_per1:'Power per 1 % chance', th_bestshare:'Best share',
+  po_compare:'Compare solo pools', po_name:'Name', po_test:'Measure latency', th_latency:'Latency', unreachable:'unreachable',
+  po_note:'Measures the TCP connect time from this PC (best of three). In solo mining your winning chance does not depend on the pool – but low latency means less stale work.',
+  po_set:'Set pool on devices', po_primary:'Primary', po_user:'BTC address (user)', po_pass:'Password', po_worker:'Append hostname as worker (address.bitaxe01)',
+  po_apply:'Set & restart', po_setnote:'AxeOS devices only; sets the protocol to Stratum V1. Devices restart afterwards. The program alerts you when a device switches to its fallback.',
+  po_missing:'Select a pool, a BTC address and at least one device.', po_confirm:'Set {slot} pool {host}:{port} on {n} device(s) and restart?\n\nAddress: {user}',
+  po_current:'Current pools', th_user:'User', th_pdiff:'Pool diff', primary:'Primary',
+  al_limits:'Limits', al_temp:'ASIC temp max (°C)', al_vr:'VR temp max (°C)', al_hr:'Hashrate min (% of target)', al_lat:'Pool latency max (ms)', al_off:'Offline after X polls', al_cool:'Repeat at most every (min)',
+  al_best:'Notify on new best share', al_notif:'Notifications', al_browser:'Desktop notification via the browser (while this tab is open)',
+  al_ntfy:'ntfy URL (e.g. https://ntfy.sh/my-secret-topic)', al_test:'Send test alert', al_log:'History', al_clear:'Clear', no_alarms:'No alerts.',
+  se_devices:'Devices', se_ip:'IP address', se_scan:'Scan network', se_scanbtn:'Start scan', se_general:'General', se_lang:'Language', se_auto:'Automatic', se_cur:'Currency', se_poll:'Poll interval (s)',
+  scan_run:'running… {p} %', scan_done:'{n} found, {a} new', confirm_remove:'Remove {ip}?',
+  se_info:'Version {v}. Settings and tuning results: {p}',
+  se_disclaimer:'Use at your own risk. Changing frequency and voltage can damage hardware and may void the warranty. Open source under the MIT license, without warranty.',
+  y:'years', d:'days', one_in:'1 in {n}'
+}};
+let LANG = (navigator.language||'en').toLowerCase().startsWith('de') ? 'de' : 'en';
+const t = (k, v={}) => (L[LANG][k] ?? L.en[k] ?? k).replace(/\{(\w+)\}/g, (_,x) => v[x] ?? '');
+const LOC = () => LANG === 'de' ? 'de-DE' : 'en-US';
+function applyStatic() {
+  document.documentElement.lang = LANG;
+  document.querySelectorAll('[data-i]').forEach(el => el.textContent = t(el.dataset.i));
+  document.querySelectorAll('[data-ph]').forEach(el => el.placeholder = t(el.dataset.ph));
+  $('#langsel').value = LANG;
+  const curAuto = document.querySelector('#g-cur option[value=auto]'); if (curAuto) curAuto.textContent = t('se_auto');
+  if (ST) {
+    document.querySelectorAll('.cur-kwh').forEach(el => el.textContent = t('kwh', {c: ST.currency}));
+    document.querySelectorAll('.cur-btc').forEach(el => el.textContent = t('btcprice', {c: ST.currency}));
+  }
+}
+
+// =====================================================================  core
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let ST = null, HIST = [], lastAlarmTs = 0, calcTouched = false, cfgLoaded = false;
+
+async function api(path, body) {
+  const r = await fetch(path, body === undefined ? {} : {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.status);
+  return j;
+}
+function toast(msg){ alert(msg); }
+
+const fHr = gh => gh >= 1000 ? (gh/1000).toFixed(2)+' TH/s' : (gh||0).toFixed(0)+' GH/s';
+function fDiff(v){ for (const [u,m] of [['T',1e12],['G',1e9],['M',1e6],['K',1e3]]) if (v>=m) return (v/m).toFixed(2)+' '+u; return (v||0).toFixed(0); }
+function fDur(sec){
+  if (!isFinite(sec)) return '∞';
+  const y = sec/31536000; if (y >= 1) return (y >= 1000 ? Math.round(y).toLocaleString(LOC()) : y.toFixed(1))+' '+t('y');
+  const d = sec/86400; if (d >= 1) return d.toFixed(1)+' '+t('d');
+  const h = Math.floor(sec/3600), m = Math.floor(sec%3600/60); return h ? `${h} h ${m} min` : `${m} min`;
+}
+const fCur = v => { const dg = Math.abs(v ?? 0) < 10 && ST?.currency !== 'JPY' ? 2 : 0;
+  return (v ?? 0).toLocaleString(LOC(),{style:'currency',currency:ST?.currency||'EUR',minimumFractionDigits:dg,maximumFractionDigits:dg}); };
+function fPct(p){ if (p >= 0.01) return (p*100).toFixed(2)+' %'; if (p <= 0) return '0 %'; return t('one_in',{n:Math.round(1/p).toLocaleString(LOC())}); }
+const tempCls = (tt,max) => tt == null ? '' : tt > max ? 'err' : tt > max-5 ? 'warn' : 'ok';
+const btcPrice = () => ST?.network?.prices?.[ST.currency] || null;
+
+document.querySelectorAll('#nav button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#nav button').forEach(x => x.classList.toggle('active', x === b));
+  document.querySelectorAll('.tab').forEach(s => s.classList.toggle('active', s.id === 'tab-'+b.dataset.tab));
+  render();
+});
+$('#langsel').onchange = async e => {
+  LANG = e.target.value; $('#g-lang').value = LANG;   // keep the settings form in sync, otherwise "Save" would revert it
+  try { await api('/api/config',{language:LANG}); } catch(err) { toast(err.message); }
+  applyStatic(); await refresh();
+};
+
+let refreshing = false;
+async function refresh() {
+  if (refreshing) return;          // never pile up requests when the PC/program is slow
+  refreshing = true;
+  try {
+    ST = await api('/api/state');
+    HIST = await api('/api/history');
+    if (ST.lang !== LANG) { LANG = ST.lang; }
+    applyStatic();
+    const on = ST.devices.filter(d => d.online).length;
+    $('#status').textContent = `${on}/${ST.devices.length} ${t('online')} · ${new Date().toLocaleTimeString(LOC())}`;
+    if (!cfgLoaded) { loadCfgForms(); cfgLoaded = true; }
+    browserNotify();
+    render();
+  } catch (e) { $('#status').innerHTML = `<span class="err">${t('no_conn')}</span>`; }
+  finally { refreshing = false; }
+}
+applyStatic(); $('#status').textContent = t('connecting');
+setInterval(refresh, 5000); refresh();
+
+function render() {
+  if (!ST) return;
+  renderOverview(); renderTuning(); renderCalc(); renderPools(); renderAlarms(); renderSettings();
+}
+
+// =====================================================================  overview + welcome
+function totals() {
+  const on = ST.devices.filter(d => d.online);
+  const hr = on.reduce((s,d) => s + (d.hashrate||0), 0);
+  const pw = on.reduce((s,d) => s + (d.power||0), 0);
+  const best = Math.max(0, ...ST.devices.map(d => d.bestDiff||0));
+  return {on, hr, pw, best};
+}
+$('#w-scan').onclick = async () => { try { await api('/api/scan',{cidr:$('#w-cidr').value.trim()}); refresh(); } catch(e){ toast(e.message); } };
+$('#w-add').onclick = async () => { try { await api('/api/devices/add',{ip:$('#w-ip').value}); $('#w-ip').value=''; setTimeout(refresh,1500); } catch(e){ toast(e.message); } };
+function renderOverview() {
+  const empty = !ST.config.devices.length;
+  $('#welcome').style.display = empty ? '' : 'none';
+  $('#ov-main').style.display = empty ? 'none' : '';
+  if (!$('#w-cidr').value) $('#w-cidr').value = ST.subnet;
+  const sc = ST.scan; $('#w-stat').textContent = sc.running ? t('scan_run',{p:sc.progress}) : sc.found?.length ? t('scan_done',{n:sc.found.length,a:sc.added ?? 0}) : '';
+  $('#w-scan').disabled = sc.running;
+  if (empty) return;
+
+  const {on, hr, pw, best} = totals();
+  const diff = ST.network.difficulty;
+  const lam = diff ? hr*1e9 / (diff*2**32) : 0;
+  const pDay = 1 - Math.exp(-lam*86400);
+  const cost = pw/1000*24*ST.config.electricity_eur_kwh;
+  $('#cards').innerHTML = [
+    [t('c_hash'), fHr(hr), t('c_devs',{n:on.length})],
+    [t('c_power'), pw.toFixed(1)+' W', t('c_perday',{v:fCur(cost)})],
+    [t('c_eff'), hr ? (pw/(hr/1000)).toFixed(2)+' J/TH' : '–', t('c_avg')],
+    [t('c_best'), fDiff(best), diff ? t('c_ofnet',{v:((best/diff)*100).toFixed(4)}) : ''],
+    [t('c_chance'), fPct(pDay), t('c_every',{v:fDur(1/lam)})],
+    [t('c_netdiff'), diff ? fDiff(diff) : '–', btcPrice() ? 'BTC '+fCur(btcPrice()) : ''],
+  ].map(([l,v,s]) => `<div class="card"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join('');
+
+  const A = ST.config.alarms;
+  const cols = ['th_device','th_model','th_hr10','th_target','th_power','J/TH','th_temps','th_fv','th_fan','th_shares','th_hwerr','th_lat','th_best','th_uptime','th_pool',''];
+  let h = `<tr>${cols.map(k => `<th>${k.startsWith('th_') ? t(k) : k}</th>`).join('')}</tr>`;
+  for (const d of ST.devices) {
+    if (!d.online) { h += `<tr><td><span class="dot" style="background:var(--err)"></span>${esc(d.hostname)}<br><span class="muted">${esc(d.ip)}</span></td><td colspan="15" class="err">${t('offline')}</td></tr>`; continue; }
+    const lat = d.poolLatency, latMax = A.pool_latency_max_ms || 2000;
+    const pct = d.expected ? d.hashrate/d.expected*100 : null;
+    const tuning = ST.tuning[d.ip]?.running;
+    h += `<tr>
+      <td><span class="dot" style="background:${tuning?'var(--warn)':'var(--ok)'}"></span><a href="http://${esc(d.ip)}" target="_blank">${esc(d.hostname)}</a><br><span class="muted">${esc(d.ip)} · ${esc(d.version)}</span></td>
+      <td>${esc(d.model)}${d.asicCount>1?' ×'+d.asicCount:''}${tuning?' <span class="pill warn">Tuning</span>':''}</td>
+      <td>${fHr(d.hashrate)}</td>
+      <td class="${pct==null?'':pct<A.hashrate_min_pct?'err':pct<95?'warn':'ok'}">${pct==null?'–':pct.toFixed(0)+' %'}</td>
+      <td>${(d.power||0).toFixed(1)} W</td>
+      <td>${d.efficiency ?? '–'}</td>
+      <td><span class="${tempCls(d.temp,A.temp_max)}">${d.temp?.toFixed(1) ?? '–'}°</span> / <span class="${tempCls(d.vrTemp,A.vr_temp_max)}">${d.vrTemp?.toFixed?.(0) ?? '–'}°</span></td>
+      <td>${d.frequency} MHz / ${d.coreVoltage} mV</td>
+      <td>${d.fanspeed != null ? Math.round(d.fanspeed) : '–'} %</td>
+      <td>${(d.sharesAccepted||0).toLocaleString(LOC())}${d.sharesRejected?` <span class="err">/ ${d.sharesRejected}</span>`:''}</td>
+      <td title="${esc(t('hw_title',{n:(d.hwErrors||0).toLocaleString(LOC())}))}">${d.hwErrPerMin ?? '–'}</td>
+      <td class="${lat==null?'':lat>latMax?'err':lat>300?'warn':'ok'}">${lat==null?'–':lat.toLocaleString(LOC())+' ms'}</td>
+      <td>${fDiff(d.bestDiff)} / ${fDiff(d.bestSessionDiff)}</td>
+      <td>${fDur(d.uptime)}</td>
+      <td>${esc(d.poolURL)}${d.usingFallback?' <span class="pill warn">Fallback</span>':''}</td>
+      <td><button class="btn sec small" onclick="restartDev('${esc(d.ip)}')">${t('btn_restart')}</button></td></tr>`;
+  }
+  $('#devtable').innerHTML = h;
+  drawChart();
+}
+async function restartDev(ip){ if (!confirm(t('confirm_restart',{ip}))) return; try { await api('/api/restart',{ip}); } catch(e){ toast(e.message); } }
+
+function drawChart() {
+  const c = $('#chart'); if (!c.offsetWidth) return;
+  const dpr = devicePixelRatio || 1; c.width = c.offsetWidth*dpr; c.height = 220*dpr;
+  const g = c.getContext('2d'); g.scale(dpr,dpr); const W = c.offsetWidth, H = 220, P = 40;
+  g.clearRect(0,0,W,H);
+  if (HIST.length < 2) { g.fillStyle = '#9a9cc4'; g.fillText(t('collecting'), P, H/2); return; }
+  const t0 = HIST[0].t, t1 = HIST.at(-1).t;
+  const maxH = Math.max(...HIST.map(h => h.hashrate))*1.1 || 1, maxP = Math.max(...HIST.map(h => h.power))*1.1 || 1;
+  const x = tt => P + (tt-t0)/(t1-t0||1)*(W-2*P);
+  g.strokeStyle = '#33366a'; g.fillStyle = '#9a9cc4'; g.font = '11px Segoe UI';
+  for (let i=0;i<=4;i++){ const y = 10+(H-30)*i/4; g.beginPath(); g.moveTo(P,y); g.lineTo(W-P,y); g.stroke();
+    g.fillText(((maxH*(1-i/4))/1000).toFixed(1), 4, y+4); g.fillText((maxP*(1-i/4)).toFixed(0)+'W', W-P+4, y+4); }
+  g.fillText(new Date(t0*1000).toLocaleTimeString(LOC(),{hour:'2-digit',minute:'2-digit'}), P, H-4);
+  g.fillText(new Date(t1*1000).toLocaleTimeString(LOC(),{hour:'2-digit',minute:'2-digit'}), W-P-30, H-4);
+  for (const [key,max,col] of [['hashrate',maxH,'#38bdf8'],['power',maxP,'#8b5cf6']]) {
+    g.strokeStyle = col; g.lineWidth = 2; g.beginPath();
+    HIST.forEach((h,i) => { const y = 10+(H-30)*(1-h[key]/max); i ? g.lineTo(x(h.t),y) : g.moveTo(x(h.t),y); }); g.stroke();
+  }
+  g.fillStyle='#38bdf8'; g.fillText('TH/s', P+4, 22); g.fillStyle='#8b5cf6'; g.fillText('Watt', P+44, 22);
+}
+addEventListener('resize', drawChart);
+
+// =====================================================================  tuning
+const PRESETS = {
+  axeos: {
+    eff: {mode:'efficiency', minFreq:425, maxFreq:550, stepFreq:25, minV:1050, maxV:1150, stepV:25},
+    bal: {mode:'efficiency', minFreq:500, maxFreq:625, stepFreq:25, minV:1125, maxV:1200, stepV:25},
+    max: {mode:'hashrate',   minFreq:550, maxFreq:700, stepFreq:25, minV:1150, maxV:1250, stepV:25},
+  },
+  // NexusQX1: 4x BM1370, voltage for the whole chain; 1000 MHz is the device-reported maximum
+  nexus: {
+    eff: {mode:'efficiency', minFreq:800, maxFreq:950,  stepFreq:50, minV:2350, maxV:2500, stepV:25},
+    bal: {mode:'efficiency', minFreq:900, maxFreq:1000, stepFreq:50, minV:2425, maxV:2575, stepV:25},
+    max: {mode:'hashrate',   minFreq:1000, maxFreq:1000, stepFreq:50, minV:2400, maxV:2600, stepV:25},
+  },
+};
+function selDev(){ return ST?.devices.find(d => d.ip === $('#t-ip').value); }
+function limitsText(d) {
+  if (!d?.limits) return '';
+  const l = d.limits, kind = d.kind === 'nexus' ? 'nexus' : 'axeos';
+  return t('tu_limits',{name:d.hostname,f1:l.minFreq,f2:l.maxFreq,v1:l.minV,v2:l.maxV,src:t(l.source==='device'?'src_device':'src_app'),fd:l.defaultFreq,vd:l.defaultV,f:d.frequency,v:d.coreVoltage})
+    + (kind === 'nexus' ? ' ' + t('hint_nexus') : '');
+}
+function applyPreset() {
+  const d = selDev(); const kind = d?.kind === 'nexus' ? 'nexus' : 'axeos';
+  const p = PRESETS[kind][$('#t-preset').value];
+  $('#t-limits').textContent = limitsText(d);
+  if (!p) return estimate();
+  $('#t-mode').value = p.mode;
+  for (const k of ['minFreq','maxFreq','stepFreq','minV','maxV','stepV']) $('#t-'+k).value = p[k];
+  estimate();
+}
+$('#t-preset').onchange = applyPreset;
+$('#t-ip').onchange = applyPreset;
+['minFreq','maxFreq','stepFreq','minV','maxV','stepV','warmupSec','measureSec'].forEach(k => $('#t-'+k).oninput = () => { if (!['warmupSec','measureSec'].includes(k)) $('#t-preset').value='custom'; estimate(); });
+function estimate(){
+  const n = (a,b,s) => Math.max(0, Math.floor((+$(b).value - +$(a).value)/Math.max(1,+$(s).value))+1);
+  const pts = n('#t-minFreq','#t-maxFreq','#t-stepFreq') * n('#t-minV','#t-maxV','#t-stepV');
+  const sec = pts*(+$('#t-warmupSec').value + +$('#t-measureSec').value + 20);
+  $('#t-est').textContent = t('tu_est',{n:pts,t:fDur(sec)});
+}
+applyPreset();
+
+function fillDeviceSelect(sel, filter) {
+  const cur = sel.value; const list = ST.devices.filter(filter);
+  const html = list.map(d => `<option value="${esc(d.ip)}">${esc(d.hostname)} (${esc(d.ip)})</option>`).join('');
+  if (sel.dataset.h !== html) { sel.innerHTML = html; sel.dataset.h = html; if (cur) sel.value = cur; }
+}
+$('#t-start').onclick = async () => {
+  const ip = $('#t-ip').value; if (!ip) return;
+  const d = ST.devices.find(x => x.ip === ip);
+  if (!d || !d.online) return toast(t('offline'));
+  const body = {ip, mode: $('#t-mode').value};
+  for (const k of ['minFreq','maxFreq','stepFreq','minV','maxV','stepV','maxTemp','maxVr','warmupSec','measureSec','minHrPct','maxHwErrPerMin','maxRejected']) body[k] = +$('#t-'+k).value;
+  if (d.hwErrPerMin != null && d.hwErrPerMin > body.maxHwErrPerMin * 0.8 && !confirm(t('warn_hw',{name:d.hostname,v:d.hwErrPerMin,lim:body.maxHwErrPerMin}))) return;
+  if (d.poolLatency != null && d.poolLatency > 1000 && !confirm(t('warn_lat',{name:d.hostname,v:d.poolLatency}))) return;
+  if (!confirm(t('confirm_tune',{name:d.hostname,f:d.frequency,v:d.coreVoltage,f1:body.minFreq,f2:body.maxFreq,v1:body.minV,v2:body.maxV}))) return;
+  try { await api('/api/tune/start', body); refresh(); } catch(e) { toast(e.message); }
+};
+async function tuneStop(ip){ try { await api('/api/tune/stop',{ip}); } catch(e){ toast(e.message); } refresh(); }
+async function tuneClear(ip){ try { await api('/api/tune/clear',{ip}); } catch(e){ toast(e.message); } refresh(); }
+function hiddenSaved(){ try { return JSON.parse(localStorage.getItem('hiddenSaved') || '[]'); } catch { return []; } }
+function hideSaved(ip, ts){ const h = hiddenSaved(); h.push(ip+':'+ts); try { localStorage.setItem('hiddenSaved', JSON.stringify(h)); } catch {} render(); }
+async function applyPoint(ip, f, v){
+  const d = ST.devices.find(x => x.ip === ip) || {hostname: ip};
+  if (!confirm(t('confirm_set',{name:d.hostname,f,v,cf:d.frequency,cv:d.coreVoltage}))) return;
+  try { await api('/api/settings',{ip, frequency:f, coreVoltage:v}); toast(t('applied',{f,v})); refresh(); } catch(e){ toast(e.message); }
+}
+$('#m-apply').onclick = async () => {
+  const ip = $('#m-ip').value, f = +$('#m-freq').value, v = +$('#m-volt').value;
+  if (!ip || !f || !v) return;
+  applyPoint(ip, f, v);
+};
+$('#m-ip').onchange = () => { const d = ST.devices.find(x => x.ip === $('#m-ip').value); if (d){ $('#m-freq').value = d.frequency; $('#m-volt').value = d.coreVoltage; } };
+
+function renderTuning() {
+  fillDeviceSelect($('#t-ip'), d => d.online && d.tunable);
+  if ($('#t-ip').value) $('#t-limits').textContent = limitsText(selDev());
+  estimate();
+  const hadM = $('#m-ip').value; fillDeviceSelect($('#m-ip'), d => d.online && d.tunable); if (!hadM) $('#m-ip').onchange();
+  const jobs = {...ST.tuning};
+  const hidden = hiddenSaved();
+  for (const [ip, r] of Object.entries(ST.config.tuning_results || {})) if (!jobs[ip] && !hidden.includes(ip+':'+r.t)) jobs[ip] = {saved:true, savedT:r.t, phase:t('saved_result',{d:new Date(r.t*1000).toLocaleString(LOC())}), results:r.results, best:r.best, params:{mode:r.mode}};
+  let h = '';
+  for (const [ip, j] of Object.entries(jobs)) {
+    const d = ST.devices.find(x => x.ip === ip) || {hostname: ip};
+    const pct = j.total ? Math.min(100, j.done/j.total*100) : 100;
+    const live = j.current?.live;
+    const isActive = r => d.online && Number(d.frequency) === Number(r.frequency) && Number(d.coreVoltage) === Number(r.coreVoltage);
+    const isBest = r => j.best && r.frequency === j.best.frequency && r.coreVoltage === j.best.coreVoltage;
+    const hideBtn = j.saved ? `<button class="btn sec small" style="float:right" onclick="hideSaved('${esc(ip)}',${j.savedT})">${t('btn_hide')}</button>`
+                            : `<button class="btn sec small" style="float:right" onclick="tuneClear('${esc(ip)}')">${t('btn_hide')}</button>`;
+    h += `<div class="panel"><h2>${esc(d.hostname)} <span class="muted">${esc(ip)}</span> · ${esc(j.phase)}
+      ${j.running ? `<button class="btn red small" style="float:right" onclick="tuneStop('${esc(ip)}')">${t('btn_cancel')}</button>` : hideBtn}</h2>
+      ${!j.running && d.online ? `<p style="margin:6px 0">${t('active_on')} <b class="ok">${d.frequency} MHz / ${d.coreVoltage} mV</b> → ${fHr(d.hashrate)}, ${(d.power||0).toFixed(1)} W${j.best && !isActive(j.best) ? ` <span class="muted">${t('differs')}</span>` : ''}</p>` : ''}
+      ${j.running ? `<div class="bar"><div style="width:${pct}%"></div></div><div class="note">${t('points',{a:j.done,b:j.total,t:new Date(j.started*1000).toLocaleTimeString(LOC())})}${live ? ` · ${t('live')}: ${fHr(live.hr)}, ${live.power.toFixed(1)} W, ${live.temp.toFixed(1)} °C, VR ${live.vr} °C` : ''}${j.current?.hwErrPerMin != null ? ', '+t('hw_live',{v:j.current.hwErrPerMin,r:j.current.rejected}) : ''}</div>` : ''}
+      ${j.message ? `<div class="note">${esc(j.message)}</div>` : ''}
+      ${j.best ? `<p>${t(j.running ? 'best_so_far' : 'suggestion')} (${t(j.params.mode==='hashrate'?'mode_hr':'mode_eff')}): <b>${j.best.frequency} MHz / ${j.best.coreVoltage} mV</b> → ${fHr(j.best.hashrate)}, ${j.best.power} W, <b>${j.best.efficiency} J/TH</b>, max ${j.best.temp} °C</p>` : ''}
+      <div class="scroll"><table><tr>${['th_mhz','th_mv','th_hr','th_pct','th_watt','J/TH','th_asicmax','th_vrmax','th_errpct','th_hwerr','th_rej','th_status',''].map(k => `<th>${k && k!=='J/TH' ? t(k) : k}</th>`).join('')}</tr>
+      ${(j.results||[]).map(r => `<tr${isActive(r) ? ' style="background:rgba(34,197,94,.14)"' : isBest(r) ? ' style="background:rgba(139,92,246,.15)"' : ''}>
+        <td>${r.frequency}</td><td>${r.coreVoltage}</td><td>${r.hashrate!=null?fHr(r.hashrate):'–'}</td><td>${r.hrPct ?? '–'}</td><td>${r.power ?? '–'}</td><td>${r.efficiency ?? '–'}</td><td>${r.temp ?? '–'}</td><td>${r.vr ?? '–'}</td><td>${r.err ?? '–'}</td><td>${r.hwErrPerMin ?? '–'}</td><td>${r.rejected ?? '–'}</td>
+        <td class="${r.stable?'ok':'warn'}">${r.stable?t('stable'):esc(r.reason)}${isActive(r) ? ` <span class="pill ok">${t('pill_active')}</span>` : ''}${isBest(r) ? ` <span class="pill">${t('pill_sugg')}</span>` : ''}</td>
+        <td>${r.stable && !j.running && !isActive(r) && d.online ? `<button class="btn sec small" onclick="applyPoint('${esc(ip)}',${r.frequency},${r.coreVoltage})">${t('btn_apply')}</button>` : ''}</td></tr>`).join('')}
+      </table></div>
+      ${!j.running ? `<div class="note">${t('legend')}</div>` : ''}</div>`;
+  }
+  $('#t-jobs').innerHTML = h;
+}
+
+// =====================================================================  calculator
+function fillCalcLive() {
+  const {hr, pw} = totals();
+  $('#c-hr').value = (hr/1000).toFixed(2);
+  $('#c-pw').value = pw.toFixed(1);
+  $('#c-price').value = ST.config.electricity_eur_kwh;
+  $('#c-diff').value = ST.network.difficulty ? (ST.network.difficulty/1e12).toFixed(2) : '';
+  $('#c-reward').value = ((ST.network.rewardSats||312500000)/1e8).toFixed(3);
+  $('#c-btc').value = btcPrice() || '';
+}
+$('#c-live').onclick = () => { calcTouched = false; fillCalcLive(); renderCalc(); };
+document.querySelectorAll('#tab-calc input').forEach(i => i.oninput = () => { calcTouched = true; renderCalc(); });
+function renderCalc() {
+  if (!calcTouched) fillCalcLive();
+  const hr = +$('#c-hr').value*1e12, pw = +$('#c-pw').value, price = +$('#c-price').value,
+        diff = +$('#c-diff').value*1e12, reward = +$('#c-reward').value, btc = +$('#c-btc').value;
+  if (!diff || !hr) { $('#c-cards').innerHTML = ''; $('#c-prob').innerHTML = ''; $('#c-cost').innerHTML = ''; $('#c-dev').innerHTML = ''; return; }
+  const lam = hr/(diff*2**32), P = s => 1-Math.exp(-lam*s);
+  const rewardCur = reward*btc;
+  const yearCost = pw/1000*8760*price;
+  const evYear = lam*31536000*rewardCur;
+  $('#c-cards').innerHTML = [
+    [t('k_eta'), fDur(1/lam), t('k_eta_s')],
+    [t('k_reward'), btc ? fCur(rewardCur) : reward+' BTC', t('k_reward_s',{v:reward})],
+    [t('k_cost'), fCur(yearCost), (pw/1000*8760).toFixed(0)+' kWh'],
+    [t('k_ev'), btc ? fCur(evYear) : '–', btc && yearCost ? t('k_ev_s',{v:(evYear/yearCost).toFixed(3)}) : ''],
+  ].map(([l,v,s]) => `<div class="card"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join('');
+  const periods = [['per_1h',3600],['per_1d',86400],['per_1w',604800],['per_1m',2592000],['per_1y',31536000],['per_5y',157680000],['per_10y',315360000]];
+  $('#c-prob').innerHTML = `<tr><th>${t('th_period')}</th><th>${t('th_prob')}</th><th>${t('th_ecost')}</th></tr>` +
+    periods.map(([n,s]) => `<tr><td>${t(n)}</td><td>${fPct(P(s))}</td><td>${fCur(pw/1000*s/3600*price)}</td></tr>`).join('');
+  const be = rewardCur && yearCost ? rewardCur/yearCost : null;
+  $('#c-cost').innerHTML = `<tr><th>${t('th_metric')}</th><th>${t('th_value')}</th></tr>
+    <tr><td>${t('m_day')}</td><td>${fCur(pw/1000*24*price)}</td></tr>
+    <tr><td>${t('m_month')}</td><td>${fCur(pw/1000*720*price)}</td></tr>
+    <tr><td>${t('m_years')}</td><td>${be ? t('m_years_v',{v:be.toFixed(0)}) : '–'}</td></tr>
+    <tr><td>${t('m_chance')}</td><td>${be ? fPct(P(be*31536000)) : '–'}</td></tr>
+    <tr><td>${t('m_per1')}</td><td>${lam ? fCur(-Math.log(0.99)/lam/3600*pw/1000*price) : '–'}</td></tr>`;
+  const dv = ST.devices.filter(d => d.online);
+  $('#c-dev').innerHTML = `<tr>${['th_device','th_hr','th_share','th_cyear','th_every','th_eyear','th_per1','th_bestshare'].map(k => `<th>${t(k)}</th>`).join('')}</tr>` +
+    dv.map(d => { const l = d.hashrate*1e9/(diff*2**32); const c = (d.power||0)/1000*8760*price;
+      return `<tr><td>${esc(d.hostname)}</td><td>${fHr(d.hashrate)}</td><td>${(d.hashrate/(hr/1e9)*100||0).toFixed(1)} %</td><td>${fPct(1-Math.exp(-l*31536000))}</td><td>${fDur(1/l)}</td><td>${fCur(c)}</td><td>${l?fCur(-Math.log(.99)/l/3600*(d.power||0)/1000*price):'–'}</td><td>${fDiff(d.bestDiff)}</td></tr>`; }).join('');
+}
+
+// =====================================================================  pools
+let poolLat = {};
+function renderPools() {
+  const pools = ST.config.pools;
+  $('#p-list').innerHTML = `<tr><th>${t('po_name')}</th><th>Host</th><th>Port</th><th>${t('th_latency')}</th><th></th></tr>` + pools.map((p,i) => {
+    const l = poolLat[p.host+':'+p.port];
+    return `<tr><td>${esc(p.name)}</td><td>${esc(p.host)}</td><td>${p.port}</td><td class="${l==null?'muted':l<50?'ok':l<150?'warn':'err'}">${l===undefined?'–':l===null?t('unreachable'):l+' ms'}</td><td><button class="btn sec small" onclick="poolDel(${i})">${t('btn_remove')}</button></td></tr>`;
+  }).join('');
+  const sel = $('#s-pool'), html = pools.map((p,i) => `<option value="${i}">${esc(p.name)} – ${esc(p.host)}:${p.port}</option>`).join('');
+  if (sel.dataset.h !== html) { const v = sel.value; sel.innerHTML = html; sel.dataset.h = html; if (v) sel.value = v; }
+  if (!$('#s-user').value) { const u = ST.devices.find(d => d.poolUser)?.poolUser; if (u) $('#s-user').value = u.split('.')[0]; }
+  const devHtml = ST.devices.filter(d => d.kind === 'axeos').map(d => `<label><input type="checkbox" class="s-dev" value="${esc(d.ip)}"> ${esc(d.hostname)}</label>`).join('');
+  const box = $('#s-devs'); if (box.dataset.h !== devHtml) { box.innerHTML = devHtml; box.dataset.h = devHtml; }
+  $('#p-current').innerHTML = `<tr>${['th_device','th_pool'].map(k=>`<th>${t(k)}</th>`).join('')}<th>Port</th><th>${t('th_user')}</th><th>${t('th_pdiff')}</th><th>${t('th_status')}</th></tr>` +
+    ST.devices.filter(d => d.online).map(d => `<tr><td>${esc(d.hostname)}</td><td>${esc(d.poolURL)}</td><td>${d.poolPort}</td><td>${esc(d.poolUser)}</td><td>${d.poolDifficulty ?? '–'}</td><td>${d.usingFallback?'<span class="warn">Fallback</span>':`<span class="ok">${t('primary')}</span>`}</td></tr>`).join('');
+}
+async function savePools(pools){ try { await api('/api/config',{pools}); } catch(e){ toast(e.message); } await refresh(); }
+async function poolDel(i){ const p = [...ST.config.pools]; p.splice(i,1); savePools(p); }
+$('#p-add').onclick = () => { const host = $('#p-host').value.trim(); if (!host) return;
+  savePools([...ST.config.pools, {name: $('#p-name').value.trim() || host, host, port: +$('#p-port').value || 3333}]); $('#p-host').value = $('#p-name').value = ''; };
+$('#p-test').onclick = async () => { $('#p-test').disabled = true; try { const r = await api('/api/pools/test',{}); r.forEach(p => poolLat[p.host+':'+p.port] = p.latency); renderPools(); } catch(e){ toast(e.message); } finally { $('#p-test').disabled = false; } };
+$('#s-apply').onclick = async () => {
+  const p = ST.config.pools[+$('#s-pool').value]; const ips = [...document.querySelectorAll('.s-dev:checked')].map(x => x.value);
+  const user = $('#s-user').value.trim();
+  if (!p || !ips.length || !user) return toast(t('po_missing'));
+  if (!confirm(t('po_confirm',{slot:$('#s-which').value === 'primary' ? t('po_primary') : 'Fallback',host:p.host,port:p.port,n:ips.length,user}))) return;
+  try { const r = await api('/api/pools/set',{ips, host:p.host, port:p.port, user, password:$('#s-pass').value, appendWorker:$('#s-worker').checked, which:$('#s-which').value});
+    $('#s-result').innerHTML = r.map(x => `<div class="${x.ok?'ok':'err'}">${esc(x.ip)}: ${esc(x.msg)}</div>`).join(''); } catch(e){ toast(e.message); }
+};
+
+// =====================================================================  alerts
+const AKEYS = ['temp_max','vr_temp_max','hashrate_min_pct','pool_latency_max_ms','offline_after_polls','cooldown_min','telegram_token','telegram_chat_id','ntfy_url','notify_best_diff','windows_notify'];
+function loadCfgForms() {
+  const A = ST.config.alarms;
+  for (const k of AKEYS) { const el = $('#a-'+k); if (el.type === 'checkbox') el.checked = !!A[k]; else el.value = A[k] ?? ''; }
+  try { $('#a-browser').checked = localStorage.getItem('browserNotify') === '1'; } catch {}
+  $('#g-poll').value = ST.config.poll_seconds; $('#g-price').value = ST.config.electricity_eur_kwh;
+  $('#g-lang').value = ST.config.language || 'auto';
+  $('#g-cur').innerHTML = `<option value="auto">${t('se_auto')}</option>` + ST.currencies.map(c => `<option>${c}</option>`).join('');
+  $('#g-cur').value = ST.config.currency || 'auto';
+  $('#d-cidr').value = ST.subnet;
+  lastAlarmTs = ST.alarms[0]?.t || 0;
+}
+$('#a-save').onclick = async () => {
+  const alarms = {}; for (const k of AKEYS) { const el = $('#a-'+k); alarms[k] = el.type === 'checkbox' ? el.checked : el.type === 'number' ? +el.value : el.value.trim(); }
+  try { await api('/api/config',{alarms}); toast(t('saved')); } catch(e){ toast(e.message); }
+};
+$('#a-browser').onchange = async e => {
+  if (e.target.checked && window.Notification && Notification.permission !== 'granted') { try { await Notification.requestPermission(); } catch {} }
+  try { localStorage.setItem('browserNotify', e.target.checked ? '1':'0'); } catch {}
+};
+$('#a-test').onclick = () => api('/api/alarm/test',{}).then(refresh, e => toast(e.message));
+$('#a-clear').onclick = () => api('/api/alarm/clear',{}).then(refresh, e => toast(e.message));
+function browserNotify() {
+  const fresh = ST.alarms.filter(a => a.t > lastAlarmTs);
+  if (fresh.length) lastAlarmTs = fresh[0].t;
+  let on = false; try { on = localStorage.getItem('browserNotify') === '1'; } catch {}
+  if (on && window.Notification && Notification.permission === 'granted') fresh.slice(0,3).forEach(a => new Notification(a.title, {body:a.msg}));
+}
+function renderAlarms() {
+  const col = {error:'var(--err)', warn:'var(--warn)', ok:'var(--ok)'};
+  $('#a-log').innerHTML = ST.alarms.length ? ST.alarms.map(a => `<div class="alarm"><div class="t">${new Date(a.t*1000).toLocaleString(LOC())}</div><div><span class="dot" style="background:${col[a.level]||'var(--muted)'}"></span><b>${esc(a.title)}</b><br><span class="muted">${esc(a.msg)}</span></div></div>`).join('') : `<div class="muted">${t('no_alarms')}</div>`;
+}
+
+// =====================================================================  settings
+$('#d-add').onclick = async () => { try { await api('/api/devices/add',{ip:$('#d-ip').value}); $('#d-ip').value=''; setTimeout(refresh,1500); } catch(e){ toast(e.message); } };
+async function devDel(ip){ if (!confirm(t('confirm_remove',{ip}))) return; try { await api('/api/devices/remove',{ip}); } catch(e){ toast(e.message); } refresh(); }
+$('#d-scan').onclick = async () => { try { await api('/api/scan',{cidr:$('#d-cidr').value}); refresh(); } catch(e){ toast(e.message); } };
+$('#g-save').onclick = async () => {
+  try {
+    await api('/api/config',{poll_seconds:+$('#g-poll').value, electricity_eur_kwh:+$('#g-price').value, language:$('#g-lang').value, currency:$('#g-cur').value});
+    calcTouched=false; await refresh(); applyStatic(); toast(t('saved'));
+  } catch(e){ toast(e.message); }
+};
+function renderSettings() {
+  const sc = ST.scan; $('#d-scanstat').textContent = sc.running ? t('scan_run',{p:sc.progress}) : sc.found?.length ? t('scan_done',{n:sc.found.length,a:sc.added ?? 0}) : '';
+  $('#d-scan').disabled = sc.running;
+  $('#d-list').innerHTML = `<tr><th>IP</th><th>${t('po_name')}</th><th>${t('th_status')}</th><th></th></tr>` + ST.config.devices.map(ip => { const d = ST.devices.find(x => x.ip === ip);
+    return `<tr><td>${esc(ip)}</td><td>${esc(d?.hostname ?? '')}</td><td>${d?.online?'<span class="ok">online</span>':'<span class="err">offline</span>'}</td><td><button class="btn sec small" onclick="devDel('${esc(ip)}')">${t('btn_remove')}</button></td></tr>`; }).join('');
+  $('#g-info').textContent = t('se_info',{v:ST.version,p:ST.configPath});
+}
+</script>
+</body>
+</html>
